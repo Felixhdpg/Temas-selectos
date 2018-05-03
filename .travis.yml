@@ -1,0 +1,52 @@
+dist: trusty
+sudo: false
+language: python # for mkdocs
+python:
+  - 2.7
+cache:
+  node: true
+  directories:
+    - $HOME/.cache/pip
+branches:
+  only:
+    - master
+    - develop
+    # tags
+    - /^v\d+\.\d+(\.\d+)?(-\S*)?$/
+before_install:
+  # Lock dependencies for branch builds
+  - |
+    if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then
+      export REQUIREMENTS_FILE=requirements.lock
+    else
+      export REQUIREMENTS_FILE=requirements.txt
+    fi
+install:
+  - pip install -r "$REQUIREMENTS_FILE" -r dev-requirements.txt
+  - nvm install 8 && nvm use 8
+  - npm install
+  # Dirty hack for what seems like a bug in linkchecker
+  - |
+    find "$VIRTUAL_ENV" -regex '.*/linkcheck/__init__.py' -print0 | \
+      xargs -0 sed -i -e "s/requests.__version__ <= '2.2.0'/map(int, requests.__version__.split('.')) <= [2, 2, 0]/"
+  - python -m mkdocs --version
+  - linkchecker --version
+  - html5validator --version
+
+script:
+  - python -m mkdocs build
+  - bash ./misc/lint.sh md
+  - bash ./misc/lint.sh html
+  - bash ./misc/lint.sh links
+  - bash ./misc/lint.sh cspell
+
+after_script:
+  # Kill mkdocs server if it's still running
+  - bash ./misc/lint.sh kill
+
+notifications:
+  slack:
+    secure: LDbNX81xRrZua4vXSfjT3BL422pb2GlDAw3VamjP/Dif0z9Iicv5725Zg/9YcEXCzD2u2eElqn1mUyGXigmyfzAeiCwt13YXyVr6EWLAEwXrR4dNGV0mgpFIgx8NXnIrxHMMexwFeIDD0iADl4D3Lftki71sPiyGy4jV+akm6Zrr295LIMzsc+/Ljm7WcxodbepZzT/R266YU+/+bPRVMRL5kOw1UKkMZjXQsF/IZnaGnHSOpk47XD29aoya7MiAHc1NG33bixuAMaL/1+OiSZ7HWB0i5AyAcMafN/VNyvrdkxtZA2GoX3hhDjKJcNGuWm4nu02GZk9wnvyz3w2xZtt9rt5xd61SJ9LdC6vzVNO01AujYYck4bUV6OPnZot1Z0EotBbd2aZkeSkoPFhV0oDdlTxVvIy5+TTrygMC1AvG7OAKtR37gqBwAQhv+Sj/ALiSmbGlTb+ehSA/2AuVR4kqFBbJ642rUb8m3Xt1YynXu+Ugp93cCVj1x+ifSxjEjAiLk2wjbfEHDZFYkNJ0VCYPZqM3UjuL5YSXxu89FTl7vbFhbCMo7DzeN5mHXQn2fGDmtiU7aKmNlKS4jKNKeCUBlquEHE06Fy3Vq2Gmv0JCELM3lcxnHFujFRv33GrLJHbXsxCWMlgc7si4uxOV2kGJe2c1Psw/7EtbUQnRCzg=
+  webhooks:
+    urls:
+      - https://webhooks.gitter.im/e/36f1eecce4abd7708221
